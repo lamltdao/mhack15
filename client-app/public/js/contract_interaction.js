@@ -5,7 +5,9 @@ $(document).ready(async function() {
     try {
         let signer = null;
         let provider;
-    
+        // A Garnache account address
+        const userAddress = '0x8593fCAD531f25Ab9d0FFCbEa8e5289c3D08DBB5';
+        const userAddress2 = '0x1DB07751C2D020843b5aA5bd6ebE669D9C796419';
         let peerToPeerLendingContractAddress = '0x0Db8e52c3eC38D1025C5f401A54Efb924046B98f';
         let peerToPeerLendingContractABI = [
             {
@@ -955,95 +957,103 @@ $(document).ready(async function() {
               "type": "function"
             }
           ];
-    
+        // redundant if test with Garnache
         if (typeof window.ethereum == 'undefined')
             return showError("Please install MetaMask to access the Ethereum Web3 API from your Web browser.");
         provider = new ethers.providers.JsonRpcProvider("http://localhost:7545")
-        
         signer = provider.getSigner()
         let peerToPeerLendingContractInstance = new ethers.Contract(peerToPeerLendingContractAddress, peerToPeerLendingContractABI, provider)
         let creditStates = ["Investment", "Repayment", "Interest returns", "Expired", "Revoked", "Fraud"];
         const result = await peerToPeerLendingContractInstance.getCredits();
-        result.forEach(function(index){
-            let creditAddress = index;
+        result.forEach(async function(creditAddress){
             let creditContract = new ethers.Contract(creditAddress, creditContractABI, provider);
     
-            creditContract.getCreditInfo(function(err, info) {
-               if (err){
-                   console.log(err);
-               }
-    
-               let creditContractInfo = {
-                   address: creditAddress,
-                   borrower: info[0],
-                   description: web3.toAscii(info[1]),
-                   requestedAmount: info[2].toString(10),
-                   requestedRepayments: info[3].toString(10),
-                   repaymentInstallment: info[4].toString(10),
-                   remainingRepayments: info[5].toString(10),
-                   interest: info[6].toString(10),
-                   returnAmount: info[7].toString(10),
-                   state: parseInt(info[8].toString(10)),
-                   active: info[9],
-                   balance: info[10].toString(10)
-               }
-    
-                $('#activeCredits')
-                    .append(`<div class="col-sm-6 mt-5">
-                                <div class="card">
-                                    <div class="card-header ${creditContractInfo.active == true ? "alert-success" : "alert-secondary"}">
-                                        <h5 class="card-title">${creditContractInfo.description}</h5>
-                                        <p>State: <span class="badge badge-primary">${creditStates[creditContractInfo.state]}</span></p>
+            /*
+            borrower,
+            description,
+            requestedAmount,
+            requestedRepayments,
+            repaymentInstallment,
+            remainingRepayments,
+            interest,
+            returnAmount,
+            state,
+            active,
+            address(this).balance
+            */
+            const info = await creditContract.getCreditInfo();
+            console.log(info)
+            let creditContractInfo = {
+                address: creditAddress,
+                borrower: info[0],
+                description: ethers.utils.parseBytes32String(info[1]),
+                requestedAmount: info[2].toString(),
+                requestedRepayments: info[3].toString(),
+                repaymentInstallment: info[4].toString(),
+                remainingRepayments: info[5].toString(),
+                interest: info[6].toString(),
+                returnAmount: info[7].toString(),
+                state: parseInt(info[8].toString()),
+                active: info[9],
+                balance: info[10].toString()
+            }
+
+            $('#activeCredits')
+                .append(`<div class="col-sm-6 mt-5">
+                            <div class="card">
+                                <div class="card-header ${creditContractInfo.active == true ? "alert-success" : "alert-secondary"}">
+                                    <h5 class="card-title">Description: ${creditContractInfo.description}</h5>
+                                    <p>State: <span class="badge badge-primary">${creditStates[creditContractInfo.state]}</span></p>
+                                </div>
+                                <div class="card-body">
+                                    <p class="card-text">
+                                        <span class="credit-description-property">Address:</span> ${creditContractInfo.address}
+                                    </p>
+                                    <p class="card-text">
+                                        <span class="credit-description-property">Borrower:</span> <a class="text-primary" href="/check?address=${creditContractInfo.borrower}" >${creditContractInfo.borrower}</a>
+                                    </p>
+                                    <p class="card-text">
+                                        <span class="credit-description-property">Requested:</span> ${ethers.utils.formatEther(creditContractInfo.requestedAmount)} ETH
+                                    </p>
+                                    <p class="card-text">
+                                        <span class="credit-description-property">Funded:</span> ${ethers.utils.formatEther(creditContractInfo.balance)} ETH
+                                    </p>
+                                    <p class="card-text">
+                                        <span class="credit-description-property">Installments Count:</span> ${creditContractInfo.requestedRepayments}
+                                    </p>
+                                    <p class="card-text">
+                                        <span class="credit-description-property">Interest:</span> ${ethers.utils.formatEther(creditContractInfo.interest)} ETH
+                                    </p>
+                                </div>
+                                <div class="card-footer">
+
+                                    <div class="input-group mb-3 investment-card" ${creditContractInfo.state !== 0 ? 'style="display:none;"' : ''}>
+                                    <input type="number" class="form-control" name="amount" placeholder="Amount" aria-label="Amount" aria-describedby="basic-addon2">
+                                    <div class="input-group-append">
+                                        <button class="btn btn-outline-success" type="button" name="invest" data-contract-address="${creditContractInfo.address}">Invest</button>
                                     </div>
-                                    <div class="card-body">
-                                        <p class="card-text">
-                                            <span class="credit-description-property">Address:</span> ${creditContractInfo.address}
-                                        </p>
-                                        <p class="card-text">
-                                            <span class="credit-description-property">Borrower:</span> <a class="text-primary" href="/check?address=${creditContractInfo.borrower}" >${creditContractInfo.borrower}</a>
-                                        </p>
-                                        <p class="card-text">
-                                            <span class="credit-description-property">Requested:</span> ${web3.fromWei(creditContractInfo.requestedAmount, "ether")} ETH
-                                        </p>
-                                        <p class="card-text">
-                                            <span class="credit-description-property">Funded:</span> ${web3.fromWei(creditContractInfo.balance, "ether")} ETH
-                                        </p>
-                                        <p class="card-text">
-                                            <span class="credit-description-property">Installments Count:</span> ${creditContractInfo.requestedRepayments}
-                                        </p>
-                                        <p class="card-text">
-                                            <span class="credit-description-property">Interest:</span> ${web3.fromWei(creditContractInfo.interest, "ether")} ETH
-                                        </p>
                                     </div>
-                                    <div class="card-footer">
-    
-                                        <div class="input-group mb-3 investment-card" ${creditContractInfo.state !== 0 ? 'style="display:none;"' : ''}>
-                                          <input type="number" class="form-control" name="amount" placeholder="Amount" aria-label="Amount" aria-describedby="basic-addon2">
-                                          <div class="input-group-append">
-                                            <button class="btn btn-outline-success" type="button" name="invest" data-contract-address="${creditContractInfo.address}">Invest</button>
-                                          </div>
-                                        </div>
-                                        <div class="mb-3">
-                                            <button type="button" class="btn btn-info" ${creditContractInfo.state !== 2 ? 'style="display:none;"' : ''} name="requestInterest" data-contract-address="${creditContractInfo.address}">Get interest</button>
-                                            <button type="button" class="btn btn-warning" name="revokeVote" data-contract-address="${creditContractInfo.address}">Revoke vote</button>
-                                            <button type="button" class="btn btn-warning" name="refund" data-contract-address="${creditContractInfo.address}">Refund</button>
-                                            <button type="button" class="btn btn-danger" name="fraudVote" data-contract-address="${creditContractInfo.address}">Fraud</button>
-                                        </div>
+                                    <div class="mb-3">
+                                        <button type="button" class="btn btn-info" ${creditContractInfo.state !== 2 ? 'style="display:none;"' : ''} name="requestInterest" data-contract-address="${creditContractInfo.address}">Get interest</button>
+                                        <button type="button" class="btn btn-warning" name="revokeVote" data-contract-address="${creditContractInfo.address}">Revoke vote</button>
+                                        <button type="button" class="btn btn-warning" name="refund" data-contract-address="${creditContractInfo.address}">Refund</button>
+                                        <button type="button" class="btn btn-danger" name="fraudVote" data-contract-address="${creditContractInfo.address}">Fraud</button>
                                     </div>
                                 </div>
                             </div>
-                            `)
-            })
-        })    
+                        </div>
+                        `)
+        })
     
-        $('body').on('click', 'button[name="invest"]', function (e) {
+        $('body').on('click', 'button[name="invest"]', async function (e) {
             e.preventDefault();
             let address = $(this).attr('data-contract-address');
             let amountField = $(this).closest('div.investment-card').find('input');
             let amount = amountField.val();
-            let selectedCreditContract = web3.eth.contract(creditContractABI).at(address);
-            let getData = selectedCreditContract.invest.getData();
-    
+            let selectedCreditContractWithSigner = new ethers.Contract(address, creditContractABI, provider).connect(signer);
+            let getData = await selectedCreditContractWithSigner.invest().data;
+            
+            console.log(ethers.utils.parseUnits(amount.toString(), "ether"))
             if (amount < 0 || amount == "" || amount == "undefined"){
                 swal({
                     type: 'error',
@@ -1053,7 +1063,7 @@ $(document).ready(async function() {
                 return;
             }
     
-            swal({
+            const result = await swal({
                 title: 'Are you sure?',
                 text: "You won't be able to revert this!",
                 type: 'warning',
@@ -1061,24 +1071,24 @@ $(document).ready(async function() {
                 confirmButtonColor: '#3085d6',
                 cancelButtonColor: '#d33',
                 confirmButtonText: 'Yes, invest!'
-            }).then((result) => {
-                if (result.value) {
-                    web3.eth.sendTransaction({from: web3.eth.coinbase, to: address, data: getData, value:web3.toWei(amount, "ether")}, function (err, result) {
-                        if (err){
-                            console.log(err);
-                            return;
-                        }
-    
-                        swal(
-                            'Invested!',
-                            'Your investment was sent.',
-                            'success'
-                        )
-                        amountField.val('');
-                        console.log("tx.hash: "+result.transactionHash);
-                    })
-                }
-            })
+            });
+
+            if (result.value) {
+                const sendTransactionRes = ethereum.request('eth_sendTransaction', {
+                    from: userAddress2,
+                    to: address,
+                    data: getData,
+                    value: ethers.utils.parseUnits(amount.toString(), "ether")
+                })
+                console.log(sendTransactionRes)
+                swal(
+                    'Invested!',
+                    'Your investment was sent.',
+                    'success'
+                )
+                amountField.val('');
+                // console.log("tx.hash: "+sendTransactionRes.transactionHash);
+            }
         });
     
         $('body').on('click', 'button[name="repayInstallment"]', function (e) {
@@ -1226,29 +1236,25 @@ $(document).ready(async function() {
             })
         });
     
-        $('body').on('submit', '#borrowRequest', function (e) {
+        $('body').on('submit', '#borrowRequest', async function (e) {
             e.preventDefault();
     
             let creditDescription = $(this).find('input[name="creditDescription"]').val();
             let creditRequestedAmount = $(this).find('input[name="creditRequestedAmount"]').val();
             let creditRequestedInstallmentsCount = $(this).find('input[name="creditRequestedInstallmentsCount"]').val();
             let creditRequestedInterest = $(this).find('input[name="creditRequestedInterest"]').val();
-    
-            peerToPeerLendingContractInstance.applyForCredit(web3.toWei(creditRequestedAmount, "ether").toString(10),creditRequestedInstallmentsCount, web3.toWei(creditRequestedInterest, "ether").toString(10), creditDescription, function(err, result) {
-                if (err){
-                    console.log(err);
-                    return showError("Smart contract call failed");
-                }
-    
-                web3.eth.getTransactionReceipt(result, (err, result) => {
-                    if (err) {
-                        return showError("Smart contract call failed");
-                    }
-    
-                    console.log(result);
-                    showInfo(`Credit successfully requested.`);
-                });
-            });
+            
+            const p2pLendingWithSigner = peerToPeerLendingContractInstance.connect(signer)
+            
+            // in wei
+            const formattedCreditRequestedAmount = ethers.utils.parseUnits(creditRequestedAmount.toString(), "ether");
+            const formattedCreditInterestRate = ethers.utils.parseUnits(creditRequestedInterest.toString(), "ether");
+            const formattedCreditDescription = ethers.utils.formatBytes32String(creditDescription);
+            const result = await p2pLendingWithSigner.applyForCredit(formattedCreditRequestedAmount,creditRequestedInstallmentsCount, formattedCreditInterestRate, formattedCreditDescription);
+            
+            const res = ethereum.request('eth_getTransactionReceipt', [result]);
+            console.log(res);
+            showInfo(`Credit successfully requested.`);
         });
     
     
@@ -1256,8 +1262,8 @@ $(document).ready(async function() {
             console.log('lend');
         }
         else if (top.location.pathname === "/borrow") {
-            const result = await peerToPeerLendingContractInstance.users('0x8593fCAD531f25Ab9d0FFCbEa8e5289c3D08DBB5')
-    
+            const result = await peerToPeerLendingContractInstance.users(userAddress)
+
             console.log(result);
 
             let user = {
@@ -1278,10 +1284,10 @@ $(document).ready(async function() {
                 $('#borrowContent')
                     .append(`
                         <form id="borrowRequest">
-                            <h1 class="text-center">Borrow request</h1>
+                            <h1 class="text-center">Cryptocurrency Borrow request</h1>
                             <div class="form-group">
                                 <label for="creditDescription">Description</label>
-                                <input type="text" class="form-control" name="creditDescription" placeholder="Why do you need the money?" required>
+                                <input type="text" class="form-control" width="5" name="creditDescription" placeholder="How would this request facilitate your exchange of carbon credits?" required>
                             </div>
                             <div class="form-row">
                                 <div class="form-group col-md-4">
@@ -1305,105 +1311,92 @@ $(document).ready(async function() {
         else if (top.location.pathname === "/profile") {
             console.log('profile');
     
-            peerToPeerLendingContractInstance.getUserCredits(function(err, result) {
-                if (err){
-                    console.log(err);
-                    return;
+            const result = await peerToPeerLendingContractInstance.getUserCredits();
+            console.log(result);
+
+            result.forEach(async function(creditAddress){
+                let creditContract = new ethers.Contract(creditAddress, creditContractABI, provider);
+
+                const info = await creditContract.getCreditInfo()
+
+                let creditContractInfo = {
+                    address: creditAddress,
+                    borrower: info[0],
+                    description: ethers.utils.parseBytes32String(info[1]),
+                    requestedAmount: info[2].toString(),
+                    requestedRepayments: info[3].toString(),
+                    repaymentInstallment: info[4].toString(),
+                    remainingRepayments: info[5].toString(),
+                    interest: info[6].toString(),
+                    returnAmount: info[7].toString(),
+                    state: parseInt(info[8].toString()),
+                    active: info[9],
+                    balance: info[10].toString()
                 }
-    
-                console.log(result);
-    
-                result.forEach(function(index){
-                    let creditAddress = index;
-                    let creditContract = web3.eth.contract(creditContractABI).at(creditAddress);
-    
-                    creditContract.getCreditInfo(function(err, info) {
-                        if (err){
-                            console.log(err);
-                        }
-    
-                        let creditContractInfo = {
-                            address: creditAddress,
-                            borrower: info[0],
-                            description: web3.toAscii(info[1]),
-                            requestedAmount: info[2].toString(10),
-                            requestedRepayments: info[3].toString(10),
-                            repaymentInstallment: info[4].toString(10),
-                            remainingRepayments: info[5].toString(10),
-                            interest: info[6].toString(10),
-                            returnAmount: info[7].toString(10),
-                            state: parseInt(info[8].toString(10)),
-                            active: info[9],
-                            balance: info[10].toString(10)
-                        }
-    
-                        $('#myCredits')
-                            .append(`<div class="col-sm-6 mt-5">
-                                    <div class="card">
-                                        <div class="card-header ${creditContractInfo.active == true ? "alert-success" : "alert-secondary"}">
-                                            <h5 class="card-title">${creditContractInfo.description}</h5>
-                                            <p>State: <span class="badge badge-primary">${creditStates[creditContractInfo.state]}</span></p>
-                                        </div>
-                                        <div class="card-body">
-                                            <p class="card-text">
-                                                <span class="credit-description-property">Address:</span> ${creditContractInfo.address}
-                                            </p>
-                                            <p class="card-text">
-                                                <span class="credit-description-property">Requested:</span> ${web3.fromWei(creditContractInfo.requestedAmount, "ether")} ETH
-                                            </p>
-                                            <p class="card-text">
-                                                <span class="credit-description-property">Funded:</span> ${web3.fromWei(creditContractInfo.balance, "ether")} ETH
-                                            </p>
-                                            <p class="card-text">
-                                                <span class="credit-description-property">Installments Count:</span> ${creditContractInfo.requestedRepayments}
-                                            </p>
-                                            <p class="card-text">
-                                                <span class="credit-description-property">Interest:</span> ${web3.fromWei(creditContractInfo.interest, "ether")} ETH
-                                            </p>
-                                        </div>
-                                        <div class="card-footer" ${creditContractInfo.state !== 1 ? 'style="display:none;"' : ''}>
-                                            <div class="input-group mb-3 investment-card">
-                                              <input type="number" class="form-control" name="amount" placeholder="Amount" aria-label="Amount" aria-describedby="basic-addon2">
-                                              <div class="input-group-append">
-                                                <button class="btn btn-outline-success" type="button" name="repayInstallment" data-contract-address="${creditContractInfo.address}">Repay installment</button>
-                                              </div>
-                                            </div>
-                                            <div class="mb-3">
-                                                <button type="button" class="btn btn-info" name="withdraw" data-contract-address="${creditContractInfo.address}">Withdraw</button>
-                                            </div>
-                                        </div>
+
+                $('#myCredits')
+                    .append(`<div class="col-sm-6 mt-5">
+                            <div class="card">
+                                <div class="card-header ${creditContractInfo.active == true ? "alert-success" : "alert-secondary"}">
+                                    <h5 class="card-title"> ${creditContractInfo.description}</h5>
+                                    <p>State: <span class="badge badge-primary">${creditStates[creditContractInfo.state]}</span></p>
+                                </div>
+                                <div class="card-body">
+                                    <p class="card-text">
+                                        <span class="credit-description-property">Address:</span> ${creditContractInfo.address}
+                                    </p>
+                                    <p class="card-text">
+                                        <span class="credit-description-property">Requested:</span> ${ethers.utils.formatEther(creditContractInfo.requestedAmount)} ETH
+                                    </p>
+                                    <p class="card-text">
+                                        <span class="credit-description-property">Funded:</span> ${ethers.utils.formatEther(creditContractInfo.balance)} ETH
+                                    </p>
+                                    <p class="card-text">
+                                        <span class="credit-description-property">Installments Count:</span> ${creditContractInfo.requestedRepayments}
+                                    </p>
+                                    <p class="card-text">
+                                        <span class="credit-description-property">Interest:</span> ${ethers.utils.formatEther(creditContractInfo.interest)} ETH
+                                    </p>
+                                </div>
+                                <div class="card-footer" ${creditContractInfo.state !== 1 ? 'style="display:none;"' : ''}>
+                                    <div class="input-group mb-3 investment-card">
+                                      <input type="number" class="form-control" name="amount" placeholder="Amount" aria-label="Amount" aria-describedby="basic-addon2">
+                                      <div class="input-group-append">
+                                        <button class="btn btn-outline-success" type="button" name="repayInstallment" data-contract-address="${creditContractInfo.address}">Repay installment</button>
+                                      </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <button type="button" class="btn btn-info" name="withdraw" data-contract-address="${creditContractInfo.address}">Withdraw</button>
                                     </div>
                                 </div>
-                                `)
-                    })
-                })
-            });
-    
+                            </div>
+                        </div>
+                        `)
+            })
     
         }
         else if (top.location.pathname === "/check") {
             let address = getUrlParameter('address');
-            peerToPeerLendingContractInstance.users(address, function(err, result) {
-                if (err) {
-                    console.log(err);
-                    return;
-                }
-    
-                console.log(result);
-    
-                let user = {
-                    credited: result[0],
-                    lastCredit: result[1],
-                    fraudStatus: result[2]
-                }
-    
-                $('#checkContent')
-                    .append(`<div class="col-sm-8 offset-sm-2 ${user.fraudStatus == true ? "alert-danger" : "alert-success"}">
-                                <p>Credited: ${user.credited == true ? "Yes" : "No"} </p>
-                                <p>Last credit: ${user.lastCredit} </p>
-                                <p>Fraud status: ${user.fraudStatus == true ? "Fraudlent" : "Good"} </p>
-                            </div>`)
-            })
+            const result = peerToPeerLendingContractInstance.users(address)
+            if (err) {
+                console.log(err);
+                return;
+            }
+
+            console.log(result);
+
+            let user = {
+                credited: result[0],
+                lastCredit: result[1],
+                fraudStatus: result[2]
+            }
+
+            $('#checkContent')
+                .append(`<div class="col-sm-8 offset-sm-2 ${user.fraudStatus == true ? "alert-danger" : "alert-success"}">
+                            <p>Credited: ${user.credited == true ? "Yes" : "No"} </p>
+                            <p>Last credit: ${user.lastCredit} </p>
+                            <p>Fraud status: ${user.fraudStatus == true ? "Fraudlent" : "Good"} </p>
+                        </div>`)
         }
     
     
